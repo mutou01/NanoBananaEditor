@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
-import { History, Download, Image as ImageIcon, Layers } from 'lucide-react';
+import { History, Download, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { ImagePreviewModal } from './ImagePreviewModal';
 
@@ -13,6 +13,8 @@ export const HistoryPanel: React.FC = () => {
     selectedEditId,
     selectGeneration,
     selectEdit,
+    removeGeneration,
+    removeEdit,
     showHistory,
     setShowHistory,
     setCanvasImage,
@@ -30,6 +32,13 @@ export const HistoryPanel: React.FC = () => {
     title: '',
     description: ''
   });
+
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = React.useState<{
+    show: boolean;
+    type: 'generation' | 'edit';
+    id: string;
+  } | null>(null);
 
   const generations = currentProject?.generations || [];
   const edits = currentProject?.edits || [];
@@ -86,22 +95,29 @@ export const HistoryPanel: React.FC = () => {
         </Button>
       </div>
 
-      {/* Variants Grid */}
+      {/* Variants Grid - Scrollable with all history */}
       <div className="mb-6 flex-shrink-0">
-        <h4 className="text-xs font-medium text-gray-400 mb-3">Current Variants</h4>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-xs font-medium text-gray-400">All History ({generations.length + edits.length})</h4>
+          {(generations.length > 0 || edits.length > 0) && (
+            <span className="text-xs text-gray-500">
+              {generations.length} gen, {edits.length} edit
+            </span>
+          )}
+        </div>
         {generations.length === 0 && edits.length === 0 ? (
           <div className="text-center py-8">
             <div className="text-4xl mb-2">🖼️</div>
             <p className="text-sm text-gray-500">No generations yet</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {/* Show generations */}
-            {generations.slice(-2).map((generation, index) => (
+          <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
+            {/* Show all generations */}
+            {generations.map((generation, index) => (
               <div
                 key={generation.id}
                 className={cn(
-                  'relative aspect-square rounded-lg border-2 cursor-pointer transition-all duration-200 overflow-hidden',
+                  'relative aspect-square rounded-lg border-2 cursor-pointer transition-all duration-200 overflow-hidden group',
                   selectedGenerationId === generation.id
                     ? 'border-yellow-400'
                     : 'border-gray-700 hover:border-gray-600'
@@ -120,6 +136,17 @@ export const HistoryPanel: React.FC = () => {
                       alt="Generated variant"
                       className="w-full h-full object-cover"
                     />
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirm({ show: true, type: 'generation', id: generation.id });
+                      }}
+                      className="absolute top-1 right-1 w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      title="Delete generation"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </>
                 ) : (
                   <div className="w-full h-full bg-gray-800 flex items-center justify-center">
@@ -128,18 +155,18 @@ export const HistoryPanel: React.FC = () => {
                 )}
                 
                 {/* Variant Number */}
-                <div className="absolute top-2 left-2 bg-gray-900/80 text-xs px-2 py-1 rounded">
-                  #{index + 1}
+                <div className="absolute top-1 left-1 bg-gray-900/80 text-xs px-1.5 py-0.5 rounded">
+                  G{index + 1}
                 </div>
               </div>
             ))}
             
-            {/* Show edits */}
-            {edits.slice(-2).map((edit, index) => (
+            {/* Show all edits */}
+            {edits.map((edit, index) => (
               <div
                 key={edit.id}
                 className={cn(
-                  'relative aspect-square rounded-lg border-2 cursor-pointer transition-all duration-200 overflow-hidden',
+                  'relative aspect-square rounded-lg border-2 cursor-pointer transition-all duration-200 overflow-hidden group',
                   selectedEditId === edit.id
                     ? 'border-yellow-400'
                     : 'border-gray-700 hover:border-gray-600'
@@ -153,11 +180,24 @@ export const HistoryPanel: React.FC = () => {
                 }}
               >
                 {edit.outputAssets[0] ? (
-                  <img
-                    src={edit.outputAssets[0].url}
-                    alt="Edited variant"
-                    className="w-full h-full object-cover"
-                  />
+                  <>
+                    <img
+                      src={edit.outputAssets[0].url}
+                      alt="Edited variant"
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteConfirm({ show: true, type: 'edit', id: edit.id });
+                      }}
+                      className="absolute top-1 right-1 w-6 h-6 bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      title="Delete edit"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </>
                 ) : (
                   <div className="w-full h-full bg-gray-800 flex items-center justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-yellow-400" />
@@ -165,11 +205,46 @@ export const HistoryPanel: React.FC = () => {
                 )}
                 
                 {/* Edit Label */}
-                <div className="absolute top-2 left-2 bg-purple-900/80 text-xs px-2 py-1 rounded">
-                  Edit #{index + 1}
+                <div className="absolute top-1 left-1 bg-purple-900/80 text-xs px-1.5 py-0.5 rounded">
+                  E{index + 1}
                 </div>
               </div>
             ))}
+          </div>
+        )}
+        
+        {/* Delete Confirmation Dialog */}
+        {deleteConfirm && (
+          <div className="mt-3 p-3 bg-red-900/20 border border-red-500/50 rounded-lg">
+            <p className="text-xs text-red-300 mb-2">
+              Delete this {deleteConfirm.type === 'generation' ? 'generation' : 'edit'}?
+            </p>
+            <div className="flex space-x-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  if (deleteConfirm.type === 'generation') {
+                    removeGeneration(deleteConfirm.id);
+                  } else {
+                    removeEdit(deleteConfirm.id);
+                  }
+                  setDeleteConfirm(null);
+                }}
+                className="flex-1 h-7 text-xs"
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Delete
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 h-7 text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         )}
       </div>

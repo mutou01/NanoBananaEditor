@@ -12,7 +12,18 @@
   - `src/components/PromptHints.tsx`: Prompt quality tips and suggestions
   - `src/components/ImagePreviewModal.tsx`: Image preview modal
 - `src/services/`: External service integrations
-  - `src/services/geminiService.ts`: Google Gemini AI API client
+  - `src/services/imageAdapter/`: Unified image generation adapter architecture
+    - `types.ts`: Common type definitions for all providers
+    - `baseAdapter.ts`: Abstract base class for all adapters
+    - `geminiAdapter.ts`: Google Gemini implementation
+    - `openAIAdapter.ts`: OpenAI/Custom provider implementation
+    - `factory.ts`: Adapter factory for dynamic provider selection
+    - `index.ts`: Module exports
+  - `src/services/promptTemplates/`: E-commerce prompt enhancement system
+    - `ecommerceTemplates.ts`: Professional e-commerce photography templates
+    - `enhancer.ts`: Prompt enhancement engine with quality boosters
+    - `index.ts`: Module exports
+  - `src/services/geminiService.ts`: (Legacy) Google Gemini AI API client
   - `src/services/cacheService.ts`: IndexedDB caching layer for offline asset access
   - `src/services/imageProcessing.ts`: Image manipulation utilities
 - `src/store/`: Zustand state management
@@ -80,8 +91,25 @@
 
 ## Environment Variables
 - Copy `.env.example` to `.env` for local development
-- `VITE_GEMINI_API_KEY`: Google AI Studio API key for Gemini image generation
-- Note: In production, API calls should go through a backend proxy
+
+### Provider Selection
+- `VITE_IMAGE_PROVIDER`: Choose the image generation provider (`gemini`, `openai`, `custom`)
+
+### Gemini Provider (Default)
+- `VITE_GEMINI_API_KEY`: Google AI Studio API key
+- `VITE_GEMINI_MODEL`: Model name (default: `gemini-2.5-flash-image-preview`)
+
+### OpenAI/Custom Provider
+- `VITE_IMAGE_API_URL`: API endpoint URL (e.g., `https://freeapi.dgbmc.top/v1/images/generations`)
+- `VITE_IMAGE_API_KEY`: API key for the service
+- `VITE_IMAGE_MODEL`: Model name (e.g., `gpt-image-2`)
+
+### Default Parameters (Optional)
+- `VITE_IMAGE_DEFAULT_SIZE`: Default image size (`1024x1024`, `1024x1536`, `1536x1024`)
+- `VITE_IMAGE_DEFAULT_TEMPERATURE`: Creativity control (0.0 - 1.0)
+- `VITE_IMAGE_DEFAULT_N`: Number of images to generate per request
+
+Note: In production, API calls should go through a backend proxy
 
 ## Testing Guidelines
 - Ensure `npm run lint` passes without errors
@@ -114,6 +142,67 @@
 - **Keyboard Shortcuts**: Efficient workflow with comprehensive hotkeys
 - **Mobile Optimized**: Responsive design for all devices
 - **Offline Caching**: IndexedDB storage for asset access without internet
+
+## Image Adapter Architecture
+
+The project uses a unified adapter architecture for "plug-and-play" model support:
+
+### Adding a New Provider
+
+1. **Create a new adapter** in `src/services/imageAdapter/`:
+```typescript
+export class MyProviderAdapter extends BaseImageAdapter {
+  readonly provider = 'myprovider';
+  protected supportedFeatures: AdapterFeature[] = ['generation', 'editing'];
+
+  async generateImage(request: GenerateImageRequest): Promise<GenerateImageResponse> {
+    // Implementation
+  }
+
+  async editImage(request: EditImageRequest): Promise<EditImageResponse> {
+    // Implementation
+  }
+}
+```
+
+2. **Register in the factory** (`src/services/imageAdapter/factory.ts`):
+```typescript
+case 'myprovider':
+  return new MyProviderAdapter(config);
+```
+
+3. **Add environment variables** to `.env.example`:
+```
+VITE_IMAGE_PROVIDER=myprovider
+VITE_MYPROVIDER_API_URL=
+VITE_MYPROVIDER_API_KEY=
+VITE_MYPROVIDER_MODEL=
+```
+
+### Adapter Features
+
+Adapters can declare support for features via `supportedFeatures`:
+- `generation`: Basic image generation
+- `editing`: Image editing capabilities
+- `segmentation`: Automatic mask generation
+- `reference-images`: Support for reference/style images
+- `mask-editing`: Support for mask-based editing
+- `temperature-control`: Creativity/quality parameter
+- `seed-control`: Reproducible generation
+- `multi-image-generation`: Generate multiple images at once
+
+### Usage in Components
+
+```typescript
+import { getImageAdapter, useAdapterInfo } from '../services/imageAdapter';
+
+// Get adapter info
+const { provider, model, supportsEditing } = useAdapterInfo();
+
+// Use adapter directly
+const adapter = getImageAdapter();
+const result = await adapter.generateImage({ prompt: "A red apple" });
+```
 
 ## License
 - **License**: GNU Affero General Public License v3.0 (AGPL-3.0)

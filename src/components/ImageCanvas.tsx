@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Stage, Layer, Image as KonvaImage, Line } from 'react-konva';
 import { useAppStore } from '../store/useAppStore';
 import { Button } from './ui/Button';
-import { ZoomIn, ZoomOut, RotateCcw, Download, Eye, EyeOff, Eraser } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCcw, Download, Eye, EyeOff, Eraser, Target } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 export const ImageCanvas: React.FC = () => {
@@ -20,7 +20,10 @@ export const ImageCanvas: React.FC = () => {
     selectedTool,
     isGenerating,
     brushSize,
-    setBrushSize
+    setBrushSize,
+    generationMode,
+    selectedSourceImage,
+    setSelectedSourceImage
   } = useAppStore();
 
   const stageRef = useRef<any>(null);
@@ -59,6 +62,15 @@ export const ImageCanvas: React.FC = () => {
       setImage(null);
     }
   }, [canvasImage, stageSize, setCanvasZoom, setCanvasPan, canvasZoom, canvasPan]);
+
+  // Reset source image selection when canvas image changes
+  // Default to uploaded image (null means use uploadedImages[0])
+  useEffect(() => {
+    if (canvasImage) {
+      // Switching canvas image resets to default (use uploaded image)
+      setSelectedSourceImage(null);
+    }
+  }, [canvasImage, setSelectedSourceImage]);
 
   // Handle stage resize
   useEffect(() => {
@@ -136,6 +148,7 @@ export const ImageCanvas: React.FC = () => {
       id: `stroke-${Date.now()}`,
       points: currentStroke,
       brushSize,
+      color: '#A855F7',
     });
     setCurrentStroke([]);
   };
@@ -229,6 +242,42 @@ export const ImageCanvas: React.FC = () => {
               {showMasks ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
               <span className="hidden sm:inline ml-2">Masks</span>
             </Button>
+
+            {/* Select as Source Button - Only show in image-to-image mode */}
+            {generationMode === 'image' && canvasImage && (
+              <div className="relative group z-50">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Toggle: if already selected, deselect (use uploaded image as default)
+                    // If not selected, select this canvas image as source
+                    if (selectedSourceImage === canvasImage) {
+                      setSelectedSourceImage(null);
+                    } else {
+                      setSelectedSourceImage(canvasImage);
+                    }
+                  }}
+                  className={cn(
+                    'transition-all duration-300 relative z-50',
+                    selectedSourceImage === canvasImage
+                      ? 'bg-green-400/20 border-green-400/50 text-green-400'
+                      : 'hover:bg-gray-800'
+                  )}
+                  title="默认以上传图片为源图"
+                >
+                  <Target
+                    className={cn(
+                      'h-4 w-4 transition-transform duration-300',
+                      selectedSourceImage === canvasImage && 'scale-110'
+                    )}
+                  />
+                  <span className="hidden sm:inline ml-2">
+                    {selectedSourceImage === canvasImage ? 'Selected' : 'Select Source'}
+                  </span>
+                </Button>
+              </div>
+            )}
             
             {canvasImage && (
               <Button variant="secondary" size="sm" onClick={handleDownload}>

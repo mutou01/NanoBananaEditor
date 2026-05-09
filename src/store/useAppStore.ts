@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { Project, Generation, Edit, SegmentationMask, BrushStroke } from '../types';
+import { generateId } from '../utils/imageUtils';
 
 interface AppState {
   // Current project
@@ -37,8 +38,29 @@ interface AppState {
   // UI state
   selectedTool: 'generate' | 'edit' | 'mask';
   
+  // Prompt template state
+  selectedTemplate: 'auto' | 'white' | 'lifestyle' | 'abstract' | 'feature' | 'user' | 'detail';
+  enhanceEnabled: boolean;
+  
+  // Generation mode: text-to-image or image-to-image
+  generationMode: 'text' | 'image';
+  
+  // Source image selection for image-to-image mode
+  // When null, use uploadedImages[0] as default (new priority)
+  // When set, use canvasImage as source (user manually selected)
+  selectedSourceImage: string | null;
+  
+  // Image size/aspect ratio for generation
+  selectedSize: 'auto' | '1:1' | '3:4';
+  
   // Actions
   setCurrentProject: (project: Project | null) => void;
+  
+  setSelectedTemplate: (template: 'auto' | 'white' | 'lifestyle' | 'abstract' | 'feature' | 'user' | 'detail') => void;
+  setEnhanceEnabled: (enabled: boolean) => void;
+  setGenerationMode: (mode: 'text' | 'image') => void;
+  setSelectedSourceImage: (url: string | null) => void;
+  setSelectedSize: (size: 'auto' | '1:1' | '3:4') => void;
   setCanvasImage: (url: string | null) => void;
   setCanvasZoom: (zoom: number) => void;
   setCanvasPan: (pan: { x: number; y: number }) => void;
@@ -63,6 +85,8 @@ interface AppState {
   
   addGeneration: (generation: Generation) => void;
   addEdit: (edit: Edit) => void;
+  removeGeneration: (id: string) => void;
+  removeEdit: (id: string) => void;
   selectGeneration: (id: string | null) => void;
   selectEdit: (id: string | null) => void;
   setShowHistory: (show: boolean) => void;
@@ -100,6 +124,19 @@ export const useAppStore = create<AppState>()(
       showPromptPanel: true,
       
       selectedTool: 'generate',
+      
+      // Prompt template initial state
+      selectedTemplate: 'auto',
+      enhanceEnabled: true,
+      
+      // Generation mode initial state (default to text-to-image)
+      generationMode: 'text',
+      
+      // Source image selection initial state (null = use uploaded image as default)
+      selectedSourceImage: null,
+      
+      // Image size initial state (default to auto)
+      selectedSize: 'auto',
       
       // Actions
       setCurrentProject: (project) => set({ currentProject: project }),
@@ -143,13 +180,56 @@ export const useAppStore = create<AppState>()(
         } : null
       })),
       
-      addEdit: (edit) => set((state) => ({
-        currentProject: state.currentProject ? {
-          ...state.currentProject,
-          edits: [...state.currentProject.edits, edit],
-          updatedAt: Date.now()
-        } : null
-      })),
+      addEdit: (edit) => set((state) => {
+        // If no current project, create one with this edit
+        if (!state.currentProject) {
+          const newProject = {
+            id: generateId(),
+            title: 'Untitled Project',
+            generations: [],
+            edits: [edit],
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+          return { currentProject: newProject };
+        }
+        // Otherwise add to existing project
+        return {
+          currentProject: {
+            ...state.currentProject,
+            edits: [...state.currentProject.edits, edit],
+            updatedAt: Date.now()
+          }
+        };
+      }),
+      
+      removeGeneration: (id) => set((state) => {
+        if (!state.currentProject) return state;
+        const newGenerations = state.currentProject.generations.filter(g => g.id !== id);
+        const wasSelected = state.selectedGenerationId === id;
+        return {
+          currentProject: {
+            ...state.currentProject,
+            generations: newGenerations,
+            updatedAt: Date.now()
+          },
+          ...(wasSelected ? { selectedGenerationId: null } : {})
+        };
+      }),
+      
+      removeEdit: (id) => set((state) => {
+        if (!state.currentProject) return state;
+        const newEdits = state.currentProject.edits.filter(e => e.id !== id);
+        const wasSelected = state.selectedEditId === id;
+        return {
+          currentProject: {
+            ...state.currentProject,
+            edits: newEdits,
+            updatedAt: Date.now()
+          },
+          ...(wasSelected ? { selectedEditId: null } : {})
+        };
+      }),
       
       selectGeneration: (id) => set({ selectedGenerationId: id }),
       selectEdit: (id) => set({ selectedEditId: id }),
@@ -158,6 +238,12 @@ export const useAppStore = create<AppState>()(
       setShowPromptPanel: (show) => set({ showPromptPanel: show }),
       
       setSelectedTool: (tool) => set({ selectedTool: tool }),
+      
+      setSelectedTemplate: (template) => set({ selectedTemplate: template }),
+      setEnhanceEnabled: (enabled) => set({ enhanceEnabled: enabled }),
+      setGenerationMode: (mode) => set({ generationMode: mode }),
+      setSelectedSourceImage: (url) => set({ selectedSourceImage: url }),
+      setSelectedSize: (size) => set({ selectedSize: size }),
     }),
     { name: 'nano-banana-store' }
   )

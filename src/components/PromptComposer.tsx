@@ -3,7 +3,7 @@ import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { useAppStore } from '../store/useAppStore';
 import { useImageGeneration, useImageEditing } from '../hooks/useImageGeneration';
-import { Upload, Wand2, Edit3, MousePointer, HelpCircle, Menu, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
+import { Upload, Wand2, Edit3, MousePointer, HelpCircle, ChevronDown, ChevronRight, RotateCcw, Sparkles } from 'lucide-react';
 import { blobToBase64 } from '../utils/imageUtils';
 import { PromptHints } from './PromptHints';
 import { cn } from '../utils/cn';
@@ -32,6 +32,14 @@ export const PromptComposer: React.FC = () => {
     showPromptPanel,
     setShowPromptPanel,
     clearBrushStrokes,
+    selectedTemplate,
+    setSelectedTemplate,
+    enhanceEnabled,
+    setEnhanceEnabled,
+    generationMode,
+    setGenerationMode,
+    selectedSize,
+    setSelectedSize,
   } = useAppStore();
 
   const { generate } = useImageGeneration();
@@ -42,21 +50,66 @@ export const PromptComposer: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleGenerate = () => {
-    if (!currentPrompt.trim()) return;
-    
     if (selectedTool === 'generate') {
-      const referenceImages = uploadedImages
-        .filter(img => img.includes('base64,'))
-        .map(img => img.split('base64,')[1]);
+      if (generationMode === 'image') {
+        // Image-to-image mode: use edit API with uploaded image as source
+        if (uploadedImages.length === 0) {
+          alert('图生图模式需要至少1张参考图片，请先上传图片');
+          return;
+        }
+        // Allow empty prompt when template enhancement is enabled
+        if (!currentPrompt.trim() && !enhanceEnabled) {
+          alert('请输入修改描述，或启用模板增强功能');
+          return;
+        }
+        // Set canvas image to first uploaded image if not already set
+        if (!canvasImage && uploadedImages[0]) {
+          setCanvasImage(uploadedImages[0]);
+        }
+        // Build size instruction based on selected size
+        let sizeInstruction = currentPrompt;
+        if (selectedSize === '1:1') {
+          sizeInstruction = currentPrompt
+            ? `${currentPrompt}, square format, 1:1 aspect ratio, equal width and height`
+            : 'Convert to square format with 1:1 aspect ratio, equal width and height';
+        } else if (selectedSize === '3:4') {
+          sizeInstruction = currentPrompt
+            ? `${currentPrompt}, portrait format, 3:4 aspect ratio, taller than wide`
+            : 'Convert to portrait format with 3:4 aspect ratio, taller than wide';
+        }
+        // Use edit mutation for image-to-image generation with enhance options and size
+        edit({
+          instruction: sizeInstruction,
+          enhance: {
+            enabled: enhanceEnabled,
+            template: selectedTemplate,
+            quality: 'hd',
+            size: selectedSize === '1:1' ? '1024x1024' : selectedSize === '3:4' ? '768x1024' : '1024x1024'
+          }
+        });
+      } else {
+        // Text-to-image mode: use generate API (prompt required)
+        if (!currentPrompt.trim()) return;
         
-      generate({
-        prompt: currentPrompt,
-        referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
-        temperature,
-        seed: seed || undefined
-      });
+        const referenceImages = uploadedImages
+          .filter(img => img.includes('base64,'))
+          .map(img => img.split('base64,')[1]);
+          
+        generate({
+          prompt: currentPrompt,
+          referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+          temperature,
+          seed: seed || undefined,
+          enhance: {
+            enabled: enhanceEnabled,
+            template: selectedTemplate,
+            quality: 'hd'
+          }
+        });
+      }
     } else if (selectedTool === 'edit' || selectedTool === 'mask') {
-      edit(currentPrompt);
+      if (!currentPrompt.trim()) return;
+      edit({ instruction: currentPrompt });
     }
   };
 
@@ -173,17 +226,64 @@ export const PromptComposer: React.FC = () => {
         </div>
       </div>
 
+      {/* Generation Mode Switch - Only for Generate Tool */}
+      {selectedTool === 'generate' && (
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-gray-300">Generation Mode</label>
+          <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+            <button
+              onClick={() => setGenerationMode('text')}
+              className={cn(
+                'flex-1 flex items-center justify-center py-2 px-3 rounded-md text-sm font-medium transition-all duration-200',
+                generationMode === 'text'
+                  ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/50'
+                  : 'text-gray-400 hover:text-gray-300'
+              )}
+            >
+              <Wand2 className="h-4 w-4 mr-2" />
+              文生图
+            </button>
+            <button
+              onClick={() => setGenerationMode('image')}
+              className={cn(
+                'flex-1 flex items-center justify-center py-2 px-3 rounded-md text-sm font-medium transition-all duration-200',
+                generationMode === 'image'
+                  ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/50'
+                  : 'text-gray-400 hover:text-gray-300'
+              )}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              图生图
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">
+            {generationMode === 'text' 
+              ? '✨ 文字生图：通过文本描述生成全新图像' 
+              : '🖼️ 图生图：基于上传的图片进行修改和再生成'}
+          </p>
+        </div>
+      )}
+
       {/* File Upload */}
       <div>
         <div>
           <label className="text-sm font-medium text-gray-300 mb-1 block">
-            {selectedTool === 'generate' ? 'Reference Images' : selectedTool === 'edit' ? 'Style References' : 'Upload Image'}
+            {selectedTool === 'generate' && generationMode === 'image'
+              ? 'Source Image (Required)' 
+              : selectedTool === 'generate' 
+                ? 'Reference Images (Optional)' 
+                : selectedTool === 'edit' 
+                  ? 'Style References' 
+                  : 'Upload Image'}
           </label>
           {selectedTool === 'mask' && (
             <p className="text-xs text-gray-400 mb-3">Edit an image with masks</p>
           )}
-          {selectedTool === 'generate' && (
-            <p className="text-xs text-gray-500 mb-3">Optional, up to 2 images</p>
+          {selectedTool === 'generate' && generationMode === 'text' && (
+            <p className="text-xs text-gray-500 mb-3">Optional style reference images, up to 2 images</p>
+          )}
+          {selectedTool === 'generate' && generationMode === 'image' && (
+            <p className="text-xs text-yellow-500/80 mb-3">Required: Upload 1 source image for image-to-image generation</p>
           )}
           {selectedTool === 'edit' && (
             <p className="text-xs text-gray-500 mb-3">
@@ -240,15 +340,23 @@ export const PromptComposer: React.FC = () => {
       {/* Prompt Input */}
       <div>
         <label className="text-sm font-medium text-gray-300 mb-3 block">
-          {selectedTool === 'generate' ? 'Describe what you want to create' : 'Describe your changes'}
+          {selectedTool === 'generate' && generationMode === 'image'
+            ? `Describe how to modify the source image ${enhanceEnabled ? '(optional with template)' : ''}`
+            : selectedTool === 'generate'
+              ? 'Describe what you want to create'
+              : 'Describe your changes'}
         </label>
         <Textarea
           value={currentPrompt}
           onChange={(e) => setCurrentPrompt(e.target.value)}
           placeholder={
-            selectedTool === 'generate'
-              ? 'A serene mountain landscape at sunset with a lake reflecting the golden sky...'
-              : 'Make the sky more dramatic, add storm clouds...'
+            selectedTool === 'generate' && generationMode === 'image'
+              ? enhanceEnabled 
+                ? 'Change the background to a modern office, add professional lighting... (or leave empty to use template defaults)'
+                : 'Change the background to a modern office, add professional lighting, keep the product angle...'
+              : selectedTool === 'generate'
+                ? 'A serene mountain landscape at sunset with a lake reflecting the golden sky...'
+                : 'Make the sky more dramatic, add storm clouds...'
           }
           className="min-h-[120px] resize-none"
         />
@@ -273,25 +381,153 @@ export const PromptComposer: React.FC = () => {
         </button>
       </div>
 
+      {/* E-commerce Template Selector */}
+      {selectedTool === 'generate' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-300 flex items-center">
+              <Sparkles className="h-4 w-4 mr-2 text-yellow-400" />
+              E-commerce Template
+            </label>
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={enhanceEnabled}
+                onChange={(e) => setEnhanceEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-yellow-400 focus:ring-yellow-400"
+              />
+              <span className="text-xs text-gray-400">Enable</span>
+            </label>
+          </div>
+          
+          <select
+            value={selectedTemplate}
+            onChange={(e) => setSelectedTemplate(e.target.value as 'auto' | 'white' | 'lifestyle' | 'abstract' | 'feature' | 'user' | 'detail')}
+            disabled={!enhanceEnabled}
+            className={cn(
+              'w-full h-10 px-3 bg-gray-900 border rounded-lg text-sm transition-colors',
+              enhanceEnabled 
+                ? 'border-gray-700 text-gray-100 cursor-pointer' 
+                : 'border-gray-800 text-gray-500 cursor-not-allowed opacity-50'
+            )}
+          >
+            <option value="auto">🎯 Auto Detect</option>
+            <option value="white">⚪ White Background (白底图)</option>
+            <option value="lifestyle">🏠 Lifestyle Scene (场景图-具象)</option>
+            <option value="abstract">🎨 Abstract Scene (场景图-抽象)</option>
+            <option value="feature">✨ Feature Showcase (卖点图)</option>
+            <option value="user">👤 User Scenario (用户使用图)</option>
+            <option value="detail">🔍 Detail Close-up (细节图)</option>
+          </select>
+          
+          {enhanceEnabled && (
+            <p className="text-xs text-gray-500">
+              {selectedTemplate === 'auto' && 'Auto-detects best template based on your prompt keywords'}
+              {selectedTemplate === 'white' && 'Pure white background, professional product catalog style'}
+              {selectedTemplate === 'lifestyle' && 'Real-life usage environment, authentic atmosphere'}
+              {selectedTemplate === 'abstract' && 'Gradient/marble backgrounds, high-end brand aesthetic'}
+              {selectedTemplate === 'feature' && 'Highlight selling points, conversion-optimized layout'}
+              {selectedTemplate === 'user' && 'Real user interaction, social proof visual'}
+              {selectedTemplate === 'detail' && 'Macro close-up, texture and craftsmanship showcase'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Image Size Selection - Only for Image-to-Image Mode */}
+      {selectedTool === 'generate' && generationMode === 'image' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-gray-300">Image Size / Aspect Ratio</label>
+            <span className="text-xs text-gray-500">{selectedSize === 'auto' ? 'Auto' : selectedSize === '1:1' ? 'Square (1024×1024)' : 'Portrait (768×1024)'}</span>
+          </div>
+          <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
+            <button
+              onClick={() => setSelectedSize('auto')}
+              className={cn(
+                'flex-1 flex items-center justify-center py-2 px-3 rounded-md text-sm font-medium transition-all duration-200',
+                selectedSize === 'auto'
+                  ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/50'
+                  : 'text-gray-400 hover:text-gray-300'
+              )}
+            >
+              Auto
+            </button>
+            <button
+              onClick={() => setSelectedSize('1:1')}
+              className={cn(
+                'flex-1 flex items-center justify-center py-2 px-3 rounded-md text-sm font-medium transition-all duration-200',
+                selectedSize === '1:1'
+                  ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/50'
+                  : 'text-gray-400 hover:text-gray-300'
+              )}
+            >
+              1:1
+            </button>
+            <button
+              onClick={() => setSelectedSize('3:4')}
+              className={cn(
+                'flex-1 flex items-center justify-center py-2 px-3 rounded-md text-sm font-medium transition-all duration-200',
+                selectedSize === '3:4'
+                  ? 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/50'
+                  : 'text-gray-400 hover:text-gray-300'
+              )}
+            >
+              3:4
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">
+            {selectedSize === 'auto' && 'Use original image dimensions'}
+            {selectedSize === '1:1' && 'Generate square image (1024×1024) with equal width and height'}
+            {selectedSize === '3:4' && 'Generate portrait image (768×1024) taller than wide'}
+          </p>
+        </div>
+      )}
 
       {/* Generate Button */}
       <Button
         onClick={handleGenerate}
-        disabled={isGenerating || !currentPrompt.trim()}
+        disabled={isGenerating || (
+          // Text-to-image always requires prompt
+          // Image-to-image requires prompt only if template enhancement is disabled
+          // Edit/Mask mode always requires prompt
+          selectedTool === 'generate' && generationMode === 'text'
+            ? !currentPrompt.trim()
+            : selectedTool === 'generate' && generationMode === 'image'
+              ? !currentPrompt.trim() && !enhanceEnabled
+              : !currentPrompt.trim()
+        )}
         className="w-full h-14 text-base font-medium"
       >
         {isGenerating ? (
           <>
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2" />
-            Generating...
+            {selectedTool === 'generate' && generationMode === 'image' ? 'Processing Image...' : 'Generating...'}
           </>
         ) : (
           <>
             <Wand2 className="h-4 w-4 mr-2" />
-            {selectedTool === 'generate' ? 'Generate' : 'Apply Edit'}
+            {selectedTool === 'generate' && generationMode === 'image' 
+              ? 'Generate from Image' 
+              : selectedTool === 'generate' 
+                ? 'Generate' 
+                : 'Apply Edit'}
           </>
         )}
       </Button>
+      
+      {/* Hint for empty prompt in image-to-image mode */}
+      {selectedTool === 'generate' && generationMode === 'image' && !currentPrompt.trim() && enhanceEnabled && (
+        <p className="text-xs text-yellow-400/80 text-center">
+          💡 已启用「{selectedTemplate === 'auto' ? '自动检测' : 
+            selectedTemplate === 'white' ? '白底图' :
+            selectedTemplate === 'lifestyle' ? '场景图' :
+            selectedTemplate === 'abstract' ? '抽象场景' :
+            selectedTemplate === 'feature' ? '卖点图' :
+            selectedTemplate === 'user' ? '用户使用图' :
+            selectedTemplate === 'detail' ? '细节图' : '自动检测'}」模板，可直接生成
+        </p>
+      )}
 
       {/* Advanced Controls */}
       <div>
