@@ -4,6 +4,7 @@ import { Button } from './ui/Button';
 import { History, Download, Image as ImageIcon, Trash2, X } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { ImagePreviewModal } from './ImagePreviewModal';
+import { downloadImageWithoutC2PA } from '../utils/imageUtils';
 
 export const HistoryPanel: React.FC = () => {
   const {
@@ -420,14 +421,14 @@ export const HistoryPanel: React.FC = () => {
 
       {/* Actions */}
       <div className="space-y-3 flex-shrink-0">
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           className="w-full"
-          onClick={() => {
+          onClick={async () => {
             // Find the currently displayed image (either generation or edit)
             let imageUrl: string | null = null;
-            
+
             if (selectedGenerationId) {
               const gen = generations.find(g => g.id === selectedGenerationId);
               imageUrl = gen?.outputAssets[0]?.url || null;
@@ -436,30 +437,15 @@ export const HistoryPanel: React.FC = () => {
               const { canvasImage } = useAppStore.getState();
               imageUrl = canvasImage;
             }
-            
+
             if (imageUrl) {
-              // Handle both data URLs and regular URLs
-              if (imageUrl.startsWith('data:')) {
-                const link = document.createElement('a');
-                link.href = imageUrl;
-                link.download = `nano-banana-${Date.now()}.png`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-              } else {
-                // For external URLs, we need to fetch and convert to blob
-                fetch(imageUrl)
-                  .then(response => response.blob())
-                  .then(blob => {
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `nano-banana-${Date.now()}.png`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                  });
+              try {
+                await downloadImageWithoutC2PA(
+                  imageUrl,
+                  `nano-banana-${Date.now()}.png`
+                );
+              } catch (error) {
+                console.error('Download failed:', error);
               }
             }
           }}

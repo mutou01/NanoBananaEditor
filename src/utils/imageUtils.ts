@@ -51,13 +51,128 @@ export function generateId(): string {
 export function downloadImage(base64: string, filename: string): void {
   const blob = base64ToBlob(base64);
   const url = URL.createObjectURL(blob);
-  
+
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  
+
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Check if image data contains C2PA metadata by looking for C2PA signatures
+ * C2PA metadata can be in XMP, PNG chunks, or other container formats
+ */
+export function containsC2PAMetadata(base64OrUrl: string): boolean {
+  // C2PA signatures to look for in image data
+  const c2paSignatures = [
+    'c2pa',           // Standard lowercase
+    'C2PA',           // Standard uppercase
+    'c2pa.rs',        // Rust SDK signature
+    'contentauth',    // Content Authenticity Initiative
+    'adobe:ns:meta',  // Adobe XMP namespace (often contains C2PA)
+  ];
+
+  // For data URLs, extract the base64 part
+  let dataToCheck = base64OrUrl;
+  if (base64OrUrl.startsWith('data:')) {
+    const commaIndex = base64OrUrl.indexOf(',');
+    if (commaIndex !== -1) {
+      dataToCheck = base64OrUrl.substring(commaIndex + 1);
+    }
+  }
+
+  // Decode base64 and check for signatures
+  try {
+    const decoded = atob(dataToCheck.substring(0, 2000)); // Check first 2000 chars
+    return c2paSignatures.some(sig => decoded.includes(sig));
+  } catch {
+    // If decoding fails, check raw base64 string for any encoded signatures
+    return c2paSignatures.some(sig =>
+      dataToCheck.toLowerCase().includes(btoa(sig).toLowerCase())
+    );
+  }
+}
+
+/**
+ * Strip all metadata (including C2PA) from an image by redrawing it on a canvas
+ * Returns a clean base64 PNG without any metadata
+ */
+export async function stripImageMetadata(
+  base64OrUrl: string,
+  mimeType: string = 'image/png'
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+
+        // Draw image to canvas (this strips all metadata)
+        ctx.drawImage(img, 0, 0);
+
+        // Export as clean PNG
+        const cleanDataUrl = canvas.toDataURL(mimeType, 1.0);
+
+        // Clean up
+        canvas.remove();
+
+        resolve(cleanDataUrl);
+      } catch (error) {
+        reject(error);
+      }
+    };
+
+    img.onerror = () => {
+      reject(new Error('Failed to load image'));
+    };
+
+    // Set source
+    if (base64OrUrl.startsWith('data:')) {
+      img.src = base64OrUrl;
+    } else {
+      img.src = `data:image/png;base64,${base64OrUrl}`;
+    }
+  });
+}
+
+/**
+ * Download image with automatic C2PA metadata removal
+ * Loads image into canvas to strip all metadata, then downloads
+ */
+export async function downloadImageWithoutC2PA(
+  base64OrUrl: string,
+  filename: string
+): Promise<void> {
+  // Check if C2PA metadata exists
+  const hasC2PA = containsC2PAMetadata(base64OrUrl);
+
+  if (hasC2PA) {
+    console.log('[C2PA] Metadata detected, stripping...');
+  }
+
+  // Always strip metadata to ensure clean download
+  const cleanDataUrl = await stripImageMetadata(base64OrUrl);
+
+  // Extract base64 from data URL
+  const base64 = cleanDataUrl.split(',')[1];
+
+  // Download the clean image
+  downloadImage(base64, filename);
+
+  if (hasC2PA) {
+    console.log('[C2PA] Metadata removed successfully');
+  }
 }

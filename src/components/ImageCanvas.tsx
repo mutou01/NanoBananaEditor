@@ -172,16 +172,13 @@ export const ImageCanvas: React.FC = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (canvasImage) {
-      if (canvasImage.startsWith('data:')) {
-        const link = document.createElement('a');
-        link.href = canvasImage;
-        link.download = `nano-banana-${Date.now()}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      const { downloadImageWithoutC2PA } = await import('../utils/imageUtils');
+      await downloadImageWithoutC2PA(
+        canvasImage,
+        `nano-banana-${Date.now()}.png`
+      );
     }
   };
 
