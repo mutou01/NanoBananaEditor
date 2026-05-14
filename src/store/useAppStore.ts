@@ -52,7 +52,10 @@ interface AppState {
   
   // Image size/aspect ratio for generation
   selectedSize: 'auto' | '1:1' | '3:4';
-  
+
+  // Model selection for image-to-image generation
+  selectedModel: 'gpt-image-2' | 'gpt-5.5';
+
   // Actions
   setCurrentProject: (project: Project | null) => void;
   
@@ -61,6 +64,7 @@ interface AppState {
   setGenerationMode: (mode: 'text' | 'image') => void;
   setSelectedSourceImage: (url: string | null) => void;
   setSelectedSize: (size: 'auto' | '1:1' | '3:4') => void;
+  setSelectedModel: (model: 'gpt-image-2' | 'gpt-5.5') => void;
   setCanvasImage: (url: string | null) => void;
   setCanvasZoom: (zoom: number) => void;
   setCanvasPan: (pan: { x: number; y: number }) => void;
@@ -135,9 +139,12 @@ export const useAppStore = create<AppState>()(
       // Source image selection initial state (null = use uploaded image as default)
       selectedSourceImage: null,
       
-      // Image size initial state (default to auto)
-      selectedSize: 'auto',
-      
+      // Image size initial state (default to 1:1 for 800x800)
+      selectedSize: '1:1',
+
+      // Model selection initial state (default to gpt-image-2)
+      selectedModel: 'gpt-image-2',
+
       // Actions
       setCurrentProject: (project) => set({ currentProject: project }),
       setCanvasImage: (url) => set({ canvasImage: url }),
@@ -244,6 +251,7 @@ export const useAppStore = create<AppState>()(
       setGenerationMode: (mode) => set({ generationMode: mode }),
       setSelectedSourceImage: (url) => set({ selectedSourceImage: url }),
       setSelectedSize: (size) => set({ selectedSize: size }),
+      setSelectedModel: (model) => set({ selectedModel: model }),
     }),
     { name: 'nano-banana-store' }
   )

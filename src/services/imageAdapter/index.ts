@@ -35,6 +35,8 @@ export type {
   IImageAdapter,
   ConfigValidationResult,
   PromptEnhancementOptions,
+  ImageGenerationModel,
+  ModelSpecificConfig,
 } from './types';
 
 // Errors

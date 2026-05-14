@@ -125,7 +125,7 @@
 
 ### Default Parameters (Optional)
 
-- `VITE_IMAGE_DEFAULT_SIZE`: Default image size (`1024x1024`, `1024x1536`, `1536x1024`)
+- `VITE_IMAGE_DEFAULT_SIZE`: Default image size (`800x800` - square, `600x800` - portrait, `auto`)
 - `VITE_IMAGE_DEFAULT_TEMPERATURE`: Creativity control (0.0 - 1.0)
 - `VITE_IMAGE_DEFAULT_N`: Number of images to generate per request
 
@@ -189,7 +189,7 @@ Six professional templates for cross-border e-commerce:
 
 - **Region-Aware Selection**: Paint masks to target specific areas for editing
 - **Reference Images**: Support up to 2 reference images for style guidance
-- **Image Size/Aspect Ratio**: Choose between Auto, 1:1 (1024×1024), 3:4 (768×1024)
+- **Image Size/Aspect Ratio**: Choose between Auto, 1:1 (800×800), 3:4 (600×800)
 - **Select as Source Button**: Manually choose canvas image as source for image-to-image
 - **Keyboard Shortcuts**: Efficient workflow with comprehensive hotkeys
 - **Mobile Optimized**: Responsive design for all devices
@@ -245,7 +245,7 @@ const request: EditImageRequest = {
   enhance: {
     enabled: true,
     template: 'white',
-    size: '1024x1024'  // Optional: 'auto' | '1024x1024' | '768x1024'
+    size: '800x800'  // Optional: 'auto' | '800x800' | '600x800'
   }
 };
 ```
@@ -301,11 +301,11 @@ Located in the canvas toolbar (right of "Masks" button):
 Image-to-image mode supports output size selection:
 
 
-| Option | Size      | Description                  | Prompt Enhancement                                        |
-| ------ | --------- | ---------------------------- | --------------------------------------------------------- |
-| Auto   | Original  | Keep source image dimensions | None                                                      |
-| 1:1    | 1024×1024 | Square format                | "square format, 1:1 aspect ratio, equal width and height" |
-| 3:4    | 768×1024  | Portrait format              | "portrait format, 3:4 aspect ratio, taller than wide"     |
+| Option | Size     | Description                  | Prompt Enhancement                                        |
+| ------ | -------- | ---------------------------- | --------------------------------------------------------- |
+| Auto   | Original | Keep source image dimensions | None                                                      |
+| 1:1    | 800×800  | Square format (default)      | "square format, 1:1 aspect ratio, equal width and height" |
+| 3:4    | 600×800  | Portrait format              | "portrait format, 3:4 aspect ratio, taller than wide"     |
 
 
 **UI Location**: Displayed above Generate button in image-to-image mode.

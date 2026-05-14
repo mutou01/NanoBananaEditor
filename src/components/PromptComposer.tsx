@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Textarea } from './ui/Textarea';
 import { Button } from './ui/Button';
 import { useAppStore } from '../store/useAppStore';
 import { useImageGeneration, useImageEditing } from '../hooks/useImageGeneration';
-import { Upload, Wand2, Edit3, MousePointer, HelpCircle, ChevronDown, ChevronRight, RotateCcw, Sparkles } from 'lucide-react';
+import { Upload, Wand2, Edit3, MousePointer, HelpCircle, ChevronDown, ChevronRight, RotateCcw, Sparkles, Check, Box } from 'lucide-react';
 import { blobToBase64 } from '../utils/imageUtils';
 import { PromptHints } from './PromptHints';
 import { cn } from '../utils/cn';
@@ -40,6 +40,8 @@ export const PromptComposer: React.FC = () => {
     setGenerationMode,
     selectedSize,
     setSelectedSize,
+    selectedModel,
+    setSelectedModel,
   } = useAppStore();
 
   const { generate } = useImageGeneration();
@@ -47,7 +49,20 @@ export const PromptComposer: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showHintsModal, setShowHintsModal] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Close model dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleGenerate = () => {
     if (selectedTool === 'generate') {
@@ -67,25 +82,32 @@ export const PromptComposer: React.FC = () => {
           setCanvasImage(uploadedImages[0]);
         }
         // Build size instruction based on selected size
+        // Even for Auto mode, we limit max dimension to 800px to ensure file size < 2MB
         let sizeInstruction = currentPrompt;
         if (selectedSize === '1:1') {
           sizeInstruction = currentPrompt
-            ? `${currentPrompt}, square format, 1:1 aspect ratio, equal width and height`
-            : 'Convert to square format with 1:1 aspect ratio, equal width and height';
+            ? `${currentPrompt}, square format, 1:1 aspect ratio, equal width and height, output size 800x800 pixels max`
+            : 'Convert to square format with 1:1 aspect ratio, equal width and height, output size 800x800 pixels max';
         } else if (selectedSize === '3:4') {
           sizeInstruction = currentPrompt
-            ? `${currentPrompt}, portrait format, 3:4 aspect ratio, taller than wide`
-            : 'Convert to portrait format with 3:4 aspect ratio, taller than wide';
+            ? `${currentPrompt}, portrait format, 3:4 aspect ratio, taller than wide, output size 600x800 pixels max`
+            : 'Convert to portrait format with 3:4 aspect ratio, taller than wide, output size 600x800 pixels max';
+        } else if (selectedSize === 'auto') {
+          // Auto mode: keep aspect ratio but limit max dimension to 800px
+          sizeInstruction = currentPrompt
+            ? `${currentPrompt}, maintain original aspect ratio, maximum dimension 800 pixels, output file size under 2MB`
+            : 'Maintain original aspect ratio, maximum dimension 800 pixels, output file size under 2MB';
         }
-        // Use edit mutation for image-to-image generation with enhance options and size
+        // Use edit mutation for image-to-image generation with enhance options, size, and model selection
         edit({
           instruction: sizeInstruction,
           enhance: {
             enabled: enhanceEnabled,
             template: selectedTemplate,
             quality: 'hd',
-            size: selectedSize === '1:1' ? '1024x1024' : selectedSize === '3:4' ? '768x1024' : '1024x1024'
-          }
+            size: selectedSize === '1:1' ? '800x800' : selectedSize === '3:4' ? '600x800' : '800x800'
+          },
+          model: selectedModel
         });
       } else {
         // Text-to-image mode: use generate API (prompt required)
@@ -439,7 +461,7 @@ export const PromptComposer: React.FC = () => {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <label className="text-sm font-medium text-gray-300">Image Size / Aspect Ratio</label>
-            <span className="text-xs text-gray-500">{selectedSize === 'auto' ? 'Auto' : selectedSize === '1:1' ? 'Square (1024×1024)' : 'Portrait (768×1024)'}</span>
+            <span className="text-xs text-gray-500">{selectedSize === 'auto' ? 'Auto' : selectedSize === '1:1' ? 'Square (800×800)' : 'Portrait (600×800)'}</span>
           </div>
           <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-700">
             <button
@@ -478,43 +500,145 @@ export const PromptComposer: React.FC = () => {
           </div>
           <p className="text-xs text-gray-500">
             {selectedSize === 'auto' && 'Use original image dimensions'}
-            {selectedSize === '1:1' && 'Generate square image (1024×1024) with equal width and height'}
-            {selectedSize === '3:4' && 'Generate portrait image (768×1024) taller than wide'}
+            {selectedSize === '1:1' && 'Generate square image (800×800) with equal width and height'}
+            {selectedSize === '3:4' && 'Generate portrait image (600×800) taller than wide'}
           </p>
         </div>
       )}
 
-      {/* Generate Button */}
-      <Button
-        onClick={handleGenerate}
-        disabled={isGenerating || (
-          // Text-to-image always requires prompt
-          // Image-to-image requires prompt only if template enhancement is disabled
-          // Edit/Mask mode always requires prompt
-          selectedTool === 'generate' && generationMode === 'text'
-            ? !currentPrompt.trim()
-            : selectedTool === 'generate' && generationMode === 'image'
-              ? !currentPrompt.trim() && !enhanceEnabled
+      {/* Generate Button with Model Selector for Image-to-Image Mode */}
+      {selectedTool === 'generate' && generationMode === 'image' ? (
+        <div className="relative" ref={modelDropdownRef}>
+          {/* Button Group with Dropdown */}
+          <div className="flex w-full h-14 rounded-lg overflow-hidden">
+            {/* Main Generate Button */}
+            <Button
+              onClick={handleGenerate}
+              disabled={isGenerating || (
+                !currentPrompt.trim() && !enhanceEnabled
+              )}
+              className="flex-1 h-full text-base font-medium rounded-none rounded-l-lg"
+            >
+              {isGenerating ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2" />
+                  Processing Image...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Generate from Image
+                </>
+              )}
+            </Button>
+
+            {/* Divider */}
+            <div className="w-px bg-black/15 my-2" />
+
+            {/* Model Dropdown Trigger */}
+            <button
+              onClick={() => setShowModelDropdown(!showModelDropdown)}
+              className={cn(
+                'w-11 h-full flex items-center justify-center transition-colors rounded-r-lg',
+                'bg-yellow-400 hover:bg-yellow-300',
+                showModelDropdown && 'bg-yellow-300'
+              )}
+              title="选择生图模型"
+            >
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 text-gray-900 transition-transform',
+                  showModelDropdown && 'rotate-180'
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Model Dropdown Menu */}
+          {showModelDropdown && (
+            <div className="absolute top-full right-0 mt-1.5 w-48 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden">
+              <div className="px-3 py-2 text-xs text-gray-500 border-b border-gray-800">
+                选择生图模型
+              </div>
+
+              {/* gpt-image-2 Option */}
+              <button
+                onClick={() => {
+                  setSelectedModel('gpt-image-2');
+                  setShowModelDropdown(false);
+                }}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-3 text-left transition-colors',
+                  selectedModel === 'gpt-image-2'
+                    ? 'bg-yellow-400/10 text-yellow-400'
+                    : 'text-gray-300 hover:bg-gray-800'
+                )}
+              >
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-[8px] font-bold text-white">
+                  GPT
+                </div>
+                <span className="text-sm flex-1">gpt-image-2</span>
+                {selectedModel === 'gpt-image-2' && (
+                  <Check className="h-4 w-4" />
+                )}
+              </button>
+
+              {/* gpt-5.5 Option */}
+              <button
+                onClick={() => {
+                  setSelectedModel('gpt-5.5');
+                  setShowModelDropdown(false);
+                }}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-3 text-left transition-colors',
+                  selectedModel === 'gpt-5.5'
+                    ? 'bg-yellow-400/10 text-yellow-400'
+                    : 'text-gray-300 hover:bg-gray-800'
+                )}
+              >
+                <div className="w-5 h-5 rounded bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-[8px] font-bold text-white">
+                  GPT
+                </div>
+                <span className="text-sm flex-1">gpt-5.5</span>
+                {selectedModel === 'gpt-5.5' && (
+                  <Check className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Current Model Badge */}
+          <div className="flex items-center justify-center mt-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-yellow-400/15 border border-yellow-400/30 rounded-full text-xs text-yellow-400">
+              <Box className="h-3 w-3" />
+              <span>{selectedModel}</span>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Standard Generate Button for Text-to-Image and Edit Modes */
+        <Button
+          onClick={handleGenerate}
+          disabled={isGenerating || (
+            selectedTool === 'generate' && generationMode === 'text'
+              ? !currentPrompt.trim()
               : !currentPrompt.trim()
-        )}
-        className="w-full h-14 text-base font-medium"
-      >
-        {isGenerating ? (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2" />
-            {selectedTool === 'generate' && generationMode === 'image' ? 'Processing Image...' : 'Generating...'}
-          </>
-        ) : (
-          <>
-            <Wand2 className="h-4 w-4 mr-2" />
-            {selectedTool === 'generate' && generationMode === 'image' 
-              ? 'Generate from Image' 
-              : selectedTool === 'generate' 
-                ? 'Generate' 
-                : 'Apply Edit'}
-          </>
-        )}
-      </Button>
+          )}
+          className="w-full h-14 text-base font-medium"
+        >
+          {isGenerating ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Wand2 className="h-4 w-4 mr-2" />
+              {selectedTool === 'generate' ? 'Generate' : 'Apply Edit'}
+            </>
+          )}
+        </Button>
+      )}
       
       {/* Hint for empty prompt in image-to-image mode */}
       {selectedTool === 'generate' && generationMode === 'image' && !currentPrompt.trim() && enhanceEnabled && (

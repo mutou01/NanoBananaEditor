@@ -29,6 +29,12 @@ export interface EnvironmentConfig {
   IMAGE_API_KEY?: string;
   IMAGE_MODEL?: string;
 
+  // Multi-model configuration for image-to-image generation
+  VITE_GPT_IMAGE_2_API_URL?: string;
+  VITE_GPT_IMAGE_2_API_KEY?: string;
+  VITE_GPT_55_API_URL?: string;
+  VITE_GPT_55_API_KEY?: string;
+
   // Default parameters (optional)
   IMAGE_DEFAULT_SIZE?: string;
   IMAGE_DEFAULT_TEMPERATURE?: string;
@@ -114,7 +120,7 @@ export class AdapterFactory {
           model: env.GEMINI_MODEL || 'gemini-2.5-flash-image-preview',
           defaultParams: {
             temperature: parseFloat(env.IMAGE_DEFAULT_TEMPERATURE || '0.7'),
-            size: (env.IMAGE_DEFAULT_SIZE as ImageSize) || '1024x1024',
+            size: (env.IMAGE_DEFAULT_SIZE as ImageSize) || '800x800',
             n: parseInt(env.IMAGE_DEFAULT_N || '1', 10),
           },
         };
@@ -128,8 +134,14 @@ export class AdapterFactory {
           model: env.IMAGE_MODEL || 'gpt-image-2',
           defaultParams: {
             temperature: parseFloat(env.IMAGE_DEFAULT_TEMPERATURE || '0.7'),
-            size: (env.IMAGE_DEFAULT_SIZE as ImageSize) || '1024x1024',
+            size: (env.IMAGE_DEFAULT_SIZE as ImageSize) || '800x800',
             n: parseInt(env.IMAGE_DEFAULT_N || '1', 10),
+          },
+          modelConfig: {
+            gptImage2ApiUrl: env.VITE_GPT_IMAGE_2_API_URL,
+            gptImage2ApiKey: env.VITE_GPT_IMAGE_2_API_KEY,
+            gpt55ApiUrl: env.VITE_GPT_55_API_URL,
+            gpt55ApiKey: env.VITE_GPT_55_API_KEY,
           },
         };
 
@@ -252,6 +264,10 @@ export function createAdapterFromImportMetaEnv(): IImageAdapter {
     IMAGE_API_URL: import.meta.env.VITE_IMAGE_API_URL as string,
     IMAGE_API_KEY: import.meta.env.VITE_IMAGE_API_KEY as string,
     IMAGE_MODEL: import.meta.env.VITE_IMAGE_MODEL as string,
+    VITE_GPT_IMAGE_2_API_URL: import.meta.env.VITE_GPT_IMAGE_2_API_URL as string,
+    VITE_GPT_IMAGE_2_API_KEY: import.meta.env.VITE_GPT_IMAGE_2_API_KEY as string,
+    VITE_GPT_55_API_URL: import.meta.env.VITE_GPT_55_API_URL as string,
+    VITE_GPT_55_API_KEY: import.meta.env.VITE_GPT_55_API_KEY as string,
     IMAGE_DEFAULT_SIZE: import.meta.env.VITE_IMAGE_DEFAULT_SIZE as string,
     IMAGE_DEFAULT_TEMPERATURE: import.meta.env.VITE_IMAGE_DEFAULT_TEMPERATURE as string,
     IMAGE_DEFAULT_N: import.meta.env.VITE_IMAGE_DEFAULT_N as string,

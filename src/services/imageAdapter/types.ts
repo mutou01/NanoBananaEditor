@@ -33,6 +33,7 @@ export interface EditImageRequest {
   seed?: number;
   size?: ImageSize;
   enhance?: PromptEnhancementOptions; // Optional instruction enhancement
+  model?: ImageGenerationModel; // Model selection for image-to-image generation
 }
 
 export interface SegmentationRequest {
@@ -80,6 +81,19 @@ export type ImageSize =
   | 'auto'
   | `${number}x${number}`;
 
+// Model selection for image generation
+export type ImageGenerationModel = 'gpt-image-2' | 'gpt-5.5';
+
+// Model-specific configuration for image-to-image providers
+export interface ModelSpecificConfig {
+  // gpt-image-2 configuration
+  gptImage2ApiUrl?: string;
+  gptImage2ApiKey?: string;
+  // gpt-5.5 configuration
+  gpt55ApiUrl?: string;
+  gpt55ApiKey?: string;
+}
+
 // Provider configuration
 export interface ProviderConfig {
   provider: 'gemini' | 'openai' | 'custom';
@@ -93,6 +107,8 @@ export interface ProviderConfig {
   };
   // Provider-specific options
   options?: Record<string, unknown>;
+  // Multi-model configuration for image-to-image generation
+  modelConfig?: ModelSpecificConfig;
 }
 
 // Adapter interface that all providers must implement
@@ -117,7 +133,8 @@ export type AdapterFeature =
   | 'mask-editing'
   | 'temperature-control'
   | 'seed-control'
-  | 'multi-image-generation';
+  | 'multi-image-generation'
+  | 'model-selection'; // Supports runtime model switching
 
 // Configuration validation result
 export interface ConfigValidationResult {

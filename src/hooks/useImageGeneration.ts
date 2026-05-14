@@ -4,6 +4,7 @@ import {
   GenerateImageRequest,
   EditImageRequest,
   PromptEnhancementOptions,
+  ImageGenerationModel,
 } from '../services/imageAdapter';
 import { useAppStore } from '../store/useAppStore';
 import { generateId } from '../utils/imageUtils';
@@ -42,8 +43,8 @@ export const useImageGeneration = () => {
           type: 'output',
           url: `data:image/png;base64,${base64}`,
           mime: 'image/png',
-          width: 1024,
-          height: 1024,
+          width: 800,
+          height: 800,
           checksum: base64.slice(0, 32),
         }));
 
@@ -54,8 +55,8 @@ export const useImageGeneration = () => {
               type: 'original' as const,
               url: img.startsWith('data:') ? img : `data:image/png;base64,${img}`,
               mime: 'image/png',
-              width: 1024,
-              height: 1024,
+              width: 800,
+              height: 800,
               checksum: img.slice(0, 32),
             }))
           : [];
@@ -124,7 +125,7 @@ export const useImageEditing = () => {
   } = useAppStore();
 
   const editMutation = useMutation({
-    mutationFn: async ({ instruction, enhance }: { instruction: string; enhance?: PromptEnhancementOptions }) => {
+    mutationFn: async ({ instruction, enhance, model }: { instruction: string; enhance?: PromptEnhancementOptions; model?: ImageGenerationModel }) => {
       const adapter = getImageAdapter();
 
       // Check if adapter supports editing
@@ -249,6 +250,7 @@ export const useImageEditing = () => {
         temperature,
         seed: seed ?? undefined,
         enhance,
+        model,
       };
 
       const response = await adapter.editImage(request);
@@ -266,8 +268,8 @@ export const useImageEditing = () => {
           type: 'output',
           url: `data:image/png;base64,${base64}`,
           mime: 'image/png',
-          width: 1024,
-          height: 1024,
+          width: 800,
+          height: 800,
           checksum: base64.slice(0, 32),
         }));
 
@@ -278,8 +280,8 @@ export const useImageEditing = () => {
               type: 'mask',
               url: `data:image/png;base64,${maskedReferenceImage}`,
               mime: 'image/png',
-              width: 1024,
-              height: 1024,
+              width: 800,
+              height: 800,
               checksum: maskedReferenceImage.slice(0, 32),
             }
           : undefined;

@@ -11,6 +11,7 @@ import {
   AdapterFeature,
   AdapterError,
 } from './types';
+import { compressImageToSize } from '../../utils/imageUtils';
 
 /**
  * Google Gemini Image Generation Adapter
@@ -79,8 +80,20 @@ export class GeminiAdapter extends BaseImageAdapter {
         }
       }
 
+      // Compress images to ensure < 2MB
+      const compressedImages = await Promise.all(
+        images.map(async (img) => {
+          try {
+            const compressed = await compressImageToSize(img, 2, 'image/png');
+            return compressed.split('base64,')[1];
+          } catch {
+            return img;
+          }
+        })
+      );
+
       return {
-        images,
+        images: compressedImages,
         metadata: {
           model: this.model,
           seed: request.seed,
@@ -149,8 +162,20 @@ export class GeminiAdapter extends BaseImageAdapter {
         }
       }
 
+      // Compress images to ensure < 2MB
+      const compressedImages = await Promise.all(
+        images.map(async (img) => {
+          try {
+            const compressed = await compressImageToSize(img, 2, 'image/png');
+            return compressed.split('base64,')[1];
+          } catch {
+            return img;
+          }
+        })
+      );
+
       return {
-        images,
+        images: compressedImages,
         metadata: {
           model: this.model,
           seed: request.seed,
